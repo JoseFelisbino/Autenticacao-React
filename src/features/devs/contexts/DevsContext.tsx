@@ -1,7 +1,8 @@
-import { createContext, useState, useEffect, ReactNode } from 'react'
+import { createContext, useState, useEffect, type ReactNode } from 'react'
 import type { DevsContextData, Dev } from '../types/devs.types'
 import { getDevs } from '../services/devsService'
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const DevsContext = createContext<DevsContextData | undefined>(undefined)
 
 interface DevsProviderProps {
