@@ -1,6 +1,22 @@
 import { API_BASE_URL } from './api';
 
 let accessToken: string | null = null;
+let isRefreshingToken = false;
+let failedQueue: Array<{
+    resolve: (value?: unknown) => void;
+    reject: (reason?: unknown) => void;
+}> = [];
+
+const processQueue = (error: Error | null, token: string | null = null) => {
+    failedQueue.forEach((promise) => {
+        if (error) {
+            promise.reject(error);
+        } else {
+            promise.resolve(token);
+        }
+    });
+    failedQueue = [];
+};
 
 export function setAccessToken(token: string | null) {
   accessToken = token;
@@ -10,7 +26,7 @@ export function getAccessToken() {
   return accessToken;
 }
 
-async function fetchWithAuth<T>(endpoint: string, options: RequestInit): Promise<T>{
+async function fetchWithAuth<T>(endpoint: string, options: RequestInit = {}): Promise<T>{
     const url = `${API_BASE_URL}${endpoint}`;
 
     const headers: HeadersInit = {
@@ -22,22 +38,63 @@ async function fetchWithAuth<T>(endpoint: string, options: RequestInit): Promise
        (headers as Record<string, string>)['Authorization'] = `Bearer ${accessToken}`;
     }
 
-    const response = await fetch(url, {
-        ...options,
-        headers
-    });
+    // eslint-disable-next-line no-useless-catch
+    try {
+        const response = await fetch(url, {
+            ...options,
+            headers,
+            credentials: 'include',
+        });
 
-    if (!response.ok) {
-        if (response.status === 401) {
-            console.error('Unauthorized: Access token may be invalid or expired.');
+        if (!response.ok) {
+            if (response.status === 401 && endpoint !== '/auth/refresh') {
+                if (isRefreshingToken) {
+                    return new Promise((resolve, reject) => {
+                        failedQueue.push({ resolve, reject });
+                    }).then(() => {
+                        return fetchWithAuth(endpoint, options);
+                    })
+                }
+
+                isRefreshingToken = true;
+                try {
+                    const refreshResponse = await fetch(`${API_BASE_URL}/auth/refresh`, {
+                        method: 'POST',
+                        credentials: 'include',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        }
+                    });
+
+                    if (!refreshResponse.ok) {
+                        processQueue(new Error('Failed to refresh access token - Session expired'));
+                        setAccessToken(null);
+                        window.location.href = '/login';
+                        throw new Error('Session expired - Please Login again');
+                    }
+
+                    const data = await refreshResponse.json();
+                    setAccessToken(data.accessToken);
+                    processQueue(null, data.accessToken);
+                    return fetchWithAuth(endpoint, options);
+                } catch (error) {
+                    processQueue(error as Error, null);
+                    throw error;
+                } finally {
+                    isRefreshingToken = false;
+                }
+            }
+
+            const error = await response.json().catch(() => ({ message: 'Failed to parse error response' }));
+            throw new Error(error.message || `HTTP error! status: ${response.status}`);
         }
 
-        const error = await response.json().catch(() => ({ message: 'Failed to parse error response' }));
-        throw new Error(error.message || `HTTP error! status: ${response.status}`);
+        return response.json();
+    } catch (error) {
+        throw error;
     }
-
-    return response.json();
 }
+
 
 export const fetchClient = {
     get: <T>(endpoint: string, options?: RequestInit) => fetchWithAuth<T>(endpoint, { ...options, method: 'GET' }),
