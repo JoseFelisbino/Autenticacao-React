@@ -5,9 +5,11 @@ import { HomePage } from './pages/HomePage'
 import { ProfilePage } from './pages/ProfilePage'
 import { LoginPage } from './pages/LoginPage'
 import { ContactPage } from './pages/ContactPage'
+import { AuthProvider } from './features/auth/contexts/auth.context'
 
 function App() {
   return (
+    <AuthProvider>
     <DevsProvider>
       <div className="min-h-screen bg-graphite text-white">
         <Navigation />
@@ -23,6 +25,7 @@ function App() {
         </main>
       </div>
     </DevsProvider>
+    </AuthProvider>
   )
 }
 
