@@ -7,11 +7,13 @@ import { LoginPage } from './pages/LoginPage'
 import { ContactPage } from './pages/ContactPage'
 import { AuthProvider } from './features/auth/contexts/auth.context'
 import { ProtectedRoute } from './features/auth/components/ProtectedRoute'
+import { useTokenRefresh } from './features/auth/hooks/useTokenRefresh'
 
-function App() {
+const AppContent = () => {
+  useTokenRefresh();
+
   return (
-    <AuthProvider>
-    <DevsProvider>
+     <DevsProvider>
       <div className="min-h-screen bg-graphite text-white">
         <Navigation />
 
@@ -28,6 +30,13 @@ function App() {
         </main>
       </div>
     </DevsProvider>
+  );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
     </AuthProvider>
   )
 }
